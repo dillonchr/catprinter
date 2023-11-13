@@ -1,2 +1,8 @@
 #!/bin/bash
-BTMAC="A215F582-1A9C-3954-A6DA-D0A74DE6F8D"
+set -e
+
+BTMAC="GB02"
+
+node ~/git/gdq-printer/gdq.js | python test.py
+python print.py -d "${BTMAC}" test.png
+echo ok
