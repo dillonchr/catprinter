@@ -70,7 +70,13 @@ async def get_device_address(device: Optional[str]):
     return await scan(device, timeout=SCAN_TIMEOUT_S)
 
 
-async def run_ble(data, device: Optional[str]):
+async def run_ble(
+    data,
+    device: Optional[str],
+    chunk_size: Optional[int] = None,
+    chunk_delay: Optional[float] = None,
+    disconnect_delay: Optional[float] = None,
+):
     try:
         address = await get_device_address(device)
     except RuntimeError as e:
@@ -80,11 +86,22 @@ async def run_ble(data, device: Optional[str]):
     async with BleakClient(address) as client:
         logger.info(
             f'✅ Connected: {client.is_connected}; MTU: {client.mtu_size}')
-        chunk_size = client.mtu_size - 3
+        
+        # Calculate chunk size. On macOS, MTU size can negotiate to a very large value (e.g. 512),
+        # which overflows the printer's RX buffer if sent in a single chunk. We cap the default
+        # chunk size at 100 bytes (matching standard ~104 MTU on other platforms).
+        if chunk_size is None:
+            chunk_size = min(client.mtu_size - 3, 100)
+        else:
+            chunk_size = max(1, chunk_size)
+            
+        delay = chunk_delay if chunk_delay is not None else WAIT_AFTER_EACH_CHUNK_S
+        disc_delay = disconnect_delay if disconnect_delay is not None else WAIT_AFTER_DATA_SENT_S
+
         logger.info(
-            f'⏳ Sending {len(data)} bytes of data in chunks of {chunk_size} bytes...')
+            f'⏳ Sending {len(data)} bytes of data in chunks of {chunk_size} bytes with {delay}s delay...')
         for i, chunk in enumerate(chunkify(data, chunk_size)):
             await client.write_gatt_char(TX_CHARACTERISTIC_UUID, chunk)
-            await asyncio.sleep(WAIT_AFTER_EACH_CHUNK_S)
-        logger.info(f'✅ Done. Waiting {WAIT_AFTER_DATA_SENT_S}s before disconnecting...')
-        await asyncio.sleep(WAIT_AFTER_DATA_SENT_S)
+            await asyncio.sleep(delay)
+        logger.info(f'✅ Done. Waiting {disc_delay}s before disconnecting...')
+        await asyncio.sleep(disc_delay)

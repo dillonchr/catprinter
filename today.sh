@@ -16,7 +16,7 @@ if ! command -v python &> /dev/null; then
 fi
 
 $PYTHON_CMD gdq.py | $PYTHON_CMD test.py
-$PYTHON_CMD print.py -d "${BTMAC}" test.png
+$PYTHON_CMD print.py -d "${BTMAC}" -c 100 --chunk-delay 0.02 test.png
 echo ok
 
 

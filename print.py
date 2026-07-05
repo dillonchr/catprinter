@@ -38,6 +38,13 @@ def parse_args():
     args.add_argument('-t', '--darker', action='store_true',
                       help="Print the image in text mode. This leads to more contrast, \
                           but slower speed.")
+    args.add_argument('-c', '--chunk-size', type=int, default=None,
+                      help='Maximum chunk size in bytes to send to the printer at a time. '
+                           'If omitted, defaults to MTU - 3, capped at 100 bytes.')
+    args.add_argument('--chunk-delay', type=float, default=None,
+                      help='Delay in seconds to wait after sending each chunk. Defaults to 0.02s.')
+    args.add_argument('--disconnect-delay', type=float, default=None,
+                      help='Delay in seconds to wait after all data is sent before disconnecting. Defaults to 30s.')
     return args.parse_args()
 
 
@@ -76,7 +83,15 @@ def main():
     logger.info(f'✅ Generated BLE commands: {len(data)} bytes')
 
     # Try to autodiscover a printer if --device is not specified.
-    asyncio.run(run_ble(data, device=args.device))
+    asyncio.run(
+        run_ble(
+            data,
+            device=args.device,
+            chunk_size=args.chunk_size,
+            chunk_delay=args.chunk_delay,
+            disconnect_delay=args.disconnect_delay,
+        )
+    )
 
 
 if __name__ == '__main__':
