@@ -34,8 +34,8 @@ def get_schedule(min_date=None, max_date=None):
         if endtime_str.endswith('Z'):
             endtime_str = endtime_str[:-1] + '+00:00'
 
-        start = datetime.fromisoformat(starttime_str)
-        ends = datetime.fromisoformat(endtime_str)
+        start = datetime.fromisoformat(starttime_str).astimezone()
+        ends = datetime.fromisoformat(endtime_str).astimezone()
 
         done = min_date > ends
         if not done:

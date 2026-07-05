@@ -22,7 +22,7 @@ TX_CHARACTERISTIC_UUID = '0000ae01-0000-1000-8000-00805f9b34fb'
 SCAN_TIMEOUT_S = 10
 
 # Wait time after sending each chunk of data through BLE.
-WAIT_AFTER_EACH_CHUNK_S = 0.02
+WAIT_AFTER_EACH_CHUNK_S = 0.03
 
 # This is a hacky solution so we don't terminate the BLE connection to the printer
 # while it's still printing. A better solution is to subscribe to the RX characteristic
@@ -89,9 +89,9 @@ async def run_ble(
         
         # Calculate chunk size. On macOS, MTU size can negotiate to a very large value (e.g. 512),
         # which overflows the printer's RX buffer if sent in a single chunk. We cap the default
-        # chunk size at 100 bytes (matching standard ~104 MTU on other platforms).
+        # chunk size at 60 bytes (matching standard ~104 MTU on other platforms).
         if chunk_size is None:
-            chunk_size = min(client.mtu_size - 3, 100)
+            chunk_size = min(client.mtu_size - 3, 60)
         else:
             chunk_size = max(1, chunk_size)
             

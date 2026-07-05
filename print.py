@@ -40,9 +40,9 @@ def parse_args():
                           but slower speed.")
     args.add_argument('-c', '--chunk-size', type=int, default=None,
                       help='Maximum chunk size in bytes to send to the printer at a time. '
-                           'If omitted, defaults to MTU - 3, capped at 100 bytes.')
+                           'If omitted, defaults to MTU - 3, capped at 60 bytes.')
     args.add_argument('--chunk-delay', type=float, default=None,
-                      help='Delay in seconds to wait after sending each chunk. Defaults to 0.02s.')
+                      help='Delay in seconds to wait after sending each chunk. Defaults to 0.03s.')
     args.add_argument('--disconnect-delay', type=float, default=None,
                       help='Delay in seconds to wait after all data is sent before disconnecting. Defaults to 30s.')
     return args.parse_args()
