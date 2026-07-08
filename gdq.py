@@ -51,7 +51,8 @@ def get_schedule(min_date=None, max_date=None):
                     'runners': runners,
                     'estimate': run.get('run_time', ''),
                     'ends': ends,
-                    'done': done
+                    'done': done,
+                    'onsite': run.get('onsite', '')
                 })
     return results
 
@@ -137,6 +138,9 @@ def main():
             run_title = "??? Bonus\n    ???"
         else:
             run_title = run['title']
+
+        if run.get('onsite', '').upper() == 'ONLINE':
+            run_title = f"[ONLINE] {run_title}"
 
         part = (
             f"\n( ) {run_title}\n"
