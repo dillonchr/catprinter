@@ -5,8 +5,10 @@ import re
 import sys
 from datetime import datetime, timedelta
 
-def fetch_runs():
-    url = "https://tracker.gamesdonequick.com/tracker/api/v2/events/66/runs/"
+EVENT_ID = 66
+
+def fetch_api(endpoint):
+    url = f"https://tracker.gamesdonequick.com/tracker/api/v2/events/{EVENT_ID}/{endpoint}/"
     req = urllib.request.Request(
         url,
         headers={'User-Agent': 'Mozilla/5.0'}
@@ -20,9 +22,19 @@ def get_schedule(min_date=None, max_date=None):
     if max_date is None:
         max_date = min_date + timedelta(hours=24)
 
-    runs = fetch_runs()
+    runs_data = fetch_api('runs')
+    runs = runs_data.get('results', [])
+
+    try:
+        interviews_data = fetch_api('interviews')
+        interviews = interviews_data.get('results', [])
+    except Exception:
+        interviews = []
+
     results = []
-    for run in runs.get('results', []):
+    run_by_id = {}
+
+    for run in runs:
         starttime_str = run.get('starttime')
         endtime_str = run.get('endtime')
         if not starttime_str or not endtime_str:
@@ -37,6 +49,12 @@ def get_schedule(min_date=None, max_date=None):
         start = datetime.fromisoformat(starttime_str).astimezone()
         ends = datetime.fromisoformat(endtime_str).astimezone()
 
+        # Save run for interview anchor lookup
+        run_by_id[run['id']] = {
+            'ends': ends,
+            'order': run.get('order', 0)
+        }
+
         done = min_date > ends
         if not done:
             is_today = max_date > start
@@ -46,6 +64,9 @@ def get_schedule(min_date=None, max_date=None):
                 title = ' '.join(title.split())
                 runners = ", ".join(r.get('name', '') for r in run.get('runners', []))
                 results.append({
+                    'type': 'run',
+                    'order': run.get('order', 0),
+                    'suborder': 0,
                     'start': start,
                     'title': title,
                     'runners': runners,
@@ -54,6 +75,46 @@ def get_schedule(min_date=None, max_date=None):
                     'done': done,
                     'onsite': run.get('onsite', '')
                 })
+
+    for interview in interviews:
+        anchor_run = run_by_id.get(interview.get('anchor'))
+        if not anchor_run:
+            continue
+
+        start = anchor_run['ends']
+        length_str = interview.get('length', '0:00:00')
+        parts = length_str.split(':')
+        duration = timedelta(
+            hours=int(parts[0]),
+            minutes=int(parts[1]),
+            seconds=int(parts[2]) if len(parts) > 2 else 0
+        )
+        ends = start + duration
+
+        done = min_date > ends
+        if not done:
+            is_today = max_date > start
+            if is_today:
+                title = interview.get('topic', '') or ''
+                title = title.replace('\\n', ' ').replace('\\r', ' ')
+                title = ' '.join(title.split())
+                interviewers = ", ".join(i.get('name', '') for i in interview.get('interviewers', []))
+                has_sent = any(i.get('type') == 'talent' and i.get('id') == 351 for i in interview.get('interviewers', []))
+                results.append({
+                    'type': 'interview',
+                    'order': anchor_run['order'],
+                    'suborder': interview.get('suborder', 0),
+                    'start': start,
+                    'title': title,
+                    'runners': interviewers,
+                    'estimate': length_str,
+                    'ends': ends,
+                    'done': done,
+                    'onsite': '',
+                    'hasSent': has_sent
+                })
+
+    results.sort(key=lambda x: (x['order'], x['suborder']))
     return results
 
 def space_between(w1, w2, max_width=32):
@@ -71,7 +132,11 @@ def format_estimate(estimate_str):
         except ValueError:
             pass
     if len(parts) > 1:
-        result = f"{result}{parts[1]}m"
+        try:
+            val_min = int(parts[1])
+            result = f"{result}{val_min}m"
+        except ValueError:
+            result = f"{result}{parts[1]}m"
     return result
 
 def receipt_formatter(text, max_width=32):
@@ -125,25 +190,30 @@ def main():
     content_parts = [header]
     bonus_game_pattern = re.compile(r"Bonus Game \d")
 
-    for run in runs:
-        estimate = format_estimate(run['estimate'])
+    for item in runs:
+        estimate = format_estimate(item['estimate'])
 
-        start_time_str = f"{run['start'].hour}:{run['start'].minute:02d}"
-        ends_time_str = f"{run['ends'].hour}:{run['ends'].minute:02d}"
+        start_time_str = f"{item['start'].hour}:{item['start'].minute:02d}"
+        ends_time_str = f"{item['ends'].hour}:{item['ends'].minute:02d}"
         run_times = f"    {start_time_str} - {ends_time_str}"
 
         space_padding = max(32 - (len(estimate) + len(run_times)), 0)
 
-        if bonus_game_pattern.search(run['title']):
+        prefix = "(I)" if item.get('type') == 'interview' else "( )"
+
+        if item.get('type') == 'run' and bonus_game_pattern.search(item['title']):
             run_title = "??? Bonus\n    ???"
         else:
-            run_title = run['title']
+            run_title = item['title']
 
-        if run.get('onsite', '').upper() == 'ONLINE':
+        if item.get('onsite', '').upper() == 'ONLINE':
             run_title = f"[ONLINE] {run_title}"
 
+        if item.get('hasSent'):
+            run_title = f"{run_title}\n    (feat. SENT!)"
+
         part = (
-            f"\n( ) {run_title}\n"
+            f"\n{prefix} {run_title}\n"
             f"{run_times}{' ' * space_padding}{estimate}\n\n"
             f"--------------------------------"
         )
